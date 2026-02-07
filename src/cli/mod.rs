@@ -123,11 +123,11 @@ pub enum Commands {
         length: usize,
 
         /// Include symbols
-        #[arg(long, default_value = "true")]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         symbols: bool,
 
         /// Include numbers
-        #[arg(long, default_value = "true")]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         numbers: bool,
 
         /// Copy to clipboard
