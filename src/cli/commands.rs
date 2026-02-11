@@ -154,9 +154,9 @@ fn get_entry(db_path: &str, name: &str, copy: bool, show: bool) -> Result<()> {
         let password_str = entry.password.as_str().map_err(|_| {
             Error::Internal("Password contains invalid UTF-8".to_string())
         })?;
-        let mut clipboard = SecureClipboard::new(30)?;
+        let mut clipboard = SecureClipboard::new(60)?;
         clipboard.copy_with_timeout(password_str)?;
-        println!("Password copied to clipboard (will clear in 30 seconds)");
+        println!("Password copied to clipboard (will clear in 60 seconds)");
     } else {
         println!("Password: ********** (use --show or --copy)");
     }
@@ -293,9 +293,9 @@ fn generate_password(length: usize, symbols: bool, numbers: bool, copy: bool) ->
         .map_err(|_| Error::Internal("Generated password contains invalid UTF-8".to_string()))?;
 
     if copy {
-        let mut clipboard = SecureClipboard::new(30)?;
+        let mut clipboard = SecureClipboard::new(60)?;
         clipboard.copy_with_timeout(password_str)?;
-        println!("Password generated and copied to clipboard (will clear in 30 seconds)");
+        println!("Password generated and copied to clipboard (will clear in 60 seconds)");
     } else {
         println!("Generated password: {}", password_str);
     }

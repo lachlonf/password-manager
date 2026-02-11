@@ -1,13 +1,12 @@
 use arboard::Clipboard;
-use std::thread;
-use std::time::Duration;
+use std::process::{Command, Stdio};
 
 use crate::error::{Error, Result};
 
 /// Secure clipboard manager with auto-clear timeout
 pub struct SecureClipboard {
     clipboard: Clipboard,
-    timeout: Duration,
+    timeout_seconds: u64,
 }
 
 impl SecureClipboard {
@@ -18,38 +17,53 @@ impl SecureClipboard {
 
         Ok(Self {
             clipboard,
-            timeout: Duration::from_secs(timeout_seconds),
+            timeout_seconds,
         })
     }
 
     /// Copy text to clipboard and auto-clear after timeout
     ///
-    /// Spawns a background thread that clears the clipboard after the timeout,
-    /// but only if the clipboard still contains our text (to avoid disrupting user workflow)
+    /// Spawns a detached OS process that clears the clipboard after the timeout.
+    /// A separate process is needed because background threads are killed when the
+    /// main process exits.
     pub fn copy_with_timeout(&mut self, text: &str) -> Result<()> {
         // Copy to clipboard
         self.clipboard
             .set_text(text)
             .map_err(|e| Error::ClipboardError(format!("Failed to copy to clipboard: {}", e)))?;
 
-        // Spawn thread to clear after timeout
-        let timeout = self.timeout;
-        let clear_text = text.to_string();
-
-        thread::spawn(move || {
-            thread::sleep(timeout);
-
-            // Only clear if our text is still there
-            if let Ok(mut cb) = Clipboard::new() {
-                if let Ok(current) = cb.get_text() {
-                    if current == clear_text {
-                        let _ = cb.clear();
-                    }
-                }
-            }
-        });
+        // Spawn a detached process to clear clipboard after timeout
+        Self::spawn_clear_process(self.timeout_seconds);
 
         Ok(())
+    }
+
+    /// Spawn a detached process that clears the clipboard after a delay
+    fn spawn_clear_process(timeout_seconds: u64) {
+        #[cfg(target_os = "macos")]
+        {
+            let _ = Command::new("sh")
+                .arg("-c")
+                .arg(format!("sleep {} && printf '' | pbcopy", timeout_seconds))
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let _ = Command::new("sh")
+                .arg("-c")
+                .arg(format!(
+                    "sleep {} && printf '' | xclip -selection clipboard 2>/dev/null || printf '' | xsel --clipboard 2>/dev/null",
+                    timeout_seconds
+                ))
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+        }
     }
 }
 
@@ -59,13 +73,13 @@ mod tests {
 
     #[test]
     fn test_clipboard_creation() {
-        let clipboard = SecureClipboard::new(30);
+        let clipboard = SecureClipboard::new(60);
         assert!(clipboard.is_ok());
     }
 
     #[test]
     fn test_copy_to_clipboard() {
-        let mut clipboard = SecureClipboard::new(30).unwrap();
+        let mut clipboard = SecureClipboard::new(60).unwrap();
         let result = clipboard.copy_with_timeout("test");
 
         // May fail in headless environments, but should not panic
